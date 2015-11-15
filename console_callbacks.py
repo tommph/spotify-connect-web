@@ -99,9 +99,20 @@ def playback_notify(self, type):
         print "kSpPlaybackNotifyPlayTokenLost"
     elif type == lib.kSpPlaybackEventAudioFlush:
         print "kSpPlaybackEventAudioFlush"
-        #audio_flush();
+        audio_flush()
     else:
         print "UNKNOWN PlaybackNotify {}".format(type)
+        
+def audio_flush():
+    global pending_data
+    
+    playback_stop()
+    
+    while not audio_queue.empty():
+        audio_queue.get()
+        audio_queue.task_done()
+    
+    pending_data = str()
 
 t = Thread()
 t_stop = Event()
