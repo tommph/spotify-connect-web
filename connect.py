@@ -5,7 +5,7 @@ import sys
 import json
 import uuid
 from connect_ffi import ffi, lib, C
-from console_callbacks import audio_arg_parser, mixer, error_callback, connection_callbacks, debug_callbacks, playback_callbacks, playback_setup
+from console_callbacks import audio_arg_parser, mixer, error_callback, connection_callbacks, debug_callbacks, playback_callbacks
 from utils import print_zeroconf_vars
 
 class Connect:
@@ -81,8 +81,6 @@ class Connect:
         }
 
         lib.SpPlaybackSetBitrate(bitrates[self.args.bitrate])
-
-        playback_setup()
 
         print_zeroconf_vars()
 

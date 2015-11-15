@@ -2,7 +2,7 @@ import argparse
 import alsaaudio as alsa
 import json
 import Queue
-from threading import Thread
+from threading import Thread, Event
 from connect_ffi import ffi, lib
 
 RATE = 44100
@@ -75,6 +75,7 @@ def playback_notify(self, type):
         print "kSpPlaybackNotifyPlay"
     elif type == lib.kSpPlaybackNotifyPause:
         print "kSpPlaybackNotifyPause"
+        playback_stop()
     elif type == lib.kSpPlaybackNotifyTrackChanged:
         print "kSpPlaybackNotifyTrackChanged"
     elif type == lib.kSpPlaybackNotifyNext:
@@ -93,6 +94,7 @@ def playback_notify(self, type):
         print "kSpPlaybackNotifyBecameActive"
     elif type == lib.kSpPlaybackNotifyBecameInactive:
         print "kSpPlaybackNotifyBecameInactive"
+        playback_stop()
     elif type == lib.kSpPlaybackNotifyPlayTokenLost:
         print "kSpPlaybackNotifyPlayTokenLost"
     elif type == lib.kSpPlaybackEventAudioFlush:
@@ -101,24 +103,41 @@ def playback_notify(self, type):
     else:
         print "UNKNOWN PlaybackNotify {}".format(type)
 
-def playback_thread(q):
-    while True:
+t = Thread()
+t_stop = Event()
+
+def playback_thread(q, e):
+    while not e.is_set():
         data = q.get()
-        device.write(data)
+        if data:
+            device.write(data)
         q.task_done()
 
 audio_queue = Queue.Queue(maxsize=MAXPERIODS)
 pending_data = str()
 
-def playback_setup():
-    t = Thread(args=(audio_queue,), target=playback_thread)
+def playback_start():
+    global t
+
+    t = Thread(args=(audio_queue, t_stop), target=playback_thread)
     t.daemon = True
     t.start()
+    
+def playback_stop():
+    if t.isAlive():
+        t_stop.set()
+        if audio_queue.empty():
+            audio_queue.put(str())
+        t.join()
+        t_stop.clear()
 
 @ffi.callback('uint32_t(const void *data, uint32_t num_samples, SpSampleFormat *format, uint32_t *pending, void *userdata)')
 @userdata_wrapper
 def playback_data(self, data, num_samples, format, pending):
     global pending_data
+    
+    if not t.isAlive():
+        playback_start()
 
     # Make sure we don't pass incomplete frames to alsa
     num_samples -= num_samples % CHANNELS
