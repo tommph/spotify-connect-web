@@ -220,6 +220,7 @@ def add_user():
 #Loop to pump events
 def pump_events():
     lib.SpPumpEvents()
+    connect_app.check_events()
     spawn_later(0.1, pump_events)
 
 pump_events()

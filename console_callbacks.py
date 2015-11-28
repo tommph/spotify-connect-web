@@ -1,8 +1,8 @@
 import argparse
 import alsaaudio as alsa
 import json
-import Queue
-from threading import Thread, Event
+import player
+from threading import Event
 from connect_ffi import ffi, lib
 
 RATE = 44100
@@ -16,16 +16,10 @@ audio_arg_parser.add_argument('--device', '-D', help='alsa output device', defau
 audio_arg_parser.add_argument('--mixer', '-m', help='alsa mixer name for volume control', default=alsa.mixers()[0])
 args = audio_arg_parser.parse_known_args()[0]
 
-device = alsa.PCM(
-        alsa.PCM_PLAYBACK,
-        card = args.device)
+audio_player = player.Player(MAXPERIODS, args.device, RATE, CHANNELS, PERIODSIZE, args.mixer)
 
-device.setchannels(CHANNELS)
-device.setrate(RATE)
-device.setperiodsize(PERIODSIZE)
-device.setformat(alsa.PCM_FORMAT_S16_LE)
-
-mixer = alsa.Mixer(args.mixer)
+play_event = Event()
+pause_event = Event()
 
 def userdata_wrapper(f):
     def inner(*args):
@@ -75,7 +69,7 @@ def playback_notify(self, type):
         print "kSpPlaybackNotifyPlay"
     elif type == lib.kSpPlaybackNotifyPause:
         print "kSpPlaybackNotifyPause"
-        playback_stop()
+        pause_event.set()
     elif type == lib.kSpPlaybackNotifyTrackChanged:
         print "kSpPlaybackNotifyTrackChanged"
     elif type == lib.kSpPlaybackNotifyNext:
@@ -94,7 +88,7 @@ def playback_notify(self, type):
         print "kSpPlaybackNotifyBecameActive"
     elif type == lib.kSpPlaybackNotifyBecameInactive:
         print "kSpPlaybackNotifyBecameInactive"
-        playback_stop()
+        pause_event.set()
     elif type == lib.kSpPlaybackNotifyPlayTokenLost:
         print "kSpPlaybackNotifyPlayTokenLost"
     elif type == lib.kSpPlaybackEventAudioFlush:
@@ -106,50 +100,18 @@ def playback_notify(self, type):
 def audio_flush():
     global pending_data
     
-    playback_stop()
-    
-    while not audio_queue.empty():
-        audio_queue.get()
-        audio_queue.task_done()
-    
+    audio_player.buffer_flush()
     pending_data = str()
-
-t = Thread()
-t_stop = Event()
-
-def playback_thread(q, e):
-    while not e.is_set():
-        data = q.get()
-        if data:
-            device.write(data)
-        q.task_done()
-
-audio_queue = Queue.Queue(maxsize=MAXPERIODS)
-pending_data = str()
-
-def playback_start():
-    global t
-
-    t = Thread(args=(audio_queue, t_stop), target=playback_thread)
-    t.daemon = True
-    t.start()
     
-def playback_stop():
-    if t.isAlive():
-        t_stop.set()
-        if audio_queue.empty():
-            audio_queue.put(str())
-        t.join()
-        t_stop.clear()
+pending_data = str()
 
 @ffi.callback('uint32_t(const void *data, uint32_t num_samples, SpSampleFormat *format, uint32_t *pending, void *userdata)')
 @userdata_wrapper
 def playback_data(self, data, num_samples, format, pending):
     global pending_data
     
-    if not t.isAlive():
-        playback_start()
-
+    play_event.set()
+    
     # Make sure we don't pass incomplete frames to alsa
     num_samples -= num_samples % CHANNELS
 
@@ -158,16 +120,16 @@ def playback_data(self, data, num_samples, format, pending):
     try:
         total = 0
         while len(buf) >= PERIODSIZE * CHANNELS * SAMPLESIZE:
-            audio_queue.put(buf[:PERIODSIZE * CHANNELS * SAMPLESIZE], block=False)
+            audio_player.write(buf[:PERIODSIZE * CHANNELS * SAMPLESIZE])
             buf = buf[PERIODSIZE * CHANNELS * SAMPLESIZE:]
             total += PERIODSIZE * CHANNELS
 
         pending_data = buf
         return num_samples
-    except Queue.Full:
+    except player.BufferFull:
         return total
     finally:
-        pending[0] = audio_queue.qsize() * PERIODSIZE * CHANNELS
+        pending[0] = audio_player.buffer_length() * PERIODSIZE * CHANNELS
 
 @ffi.callback('void(uint32_t millis, void *userdata)')
 @userdata_wrapper
@@ -178,7 +140,8 @@ def playback_seek(self, millis):
 @userdata_wrapper
 def playback_volume(self, volume):
     print "playback_volume: {}".format(volume)
-    mixer.setvolume(int(volume / 655.35))
+    if audio_player.mixer_loaded():
+        audio_player.set_volume(int(volume / 655.35))
 
 connection_callbacks = ffi.new('SpConnectionCallbacks *', [
     connection_notify,

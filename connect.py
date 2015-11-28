@@ -4,8 +4,9 @@ import signal
 import sys
 import json
 import uuid
+import player
 from connect_ffi import ffi, lib, C
-from console_callbacks import audio_arg_parser, mixer, error_callback, connection_callbacks, debug_callbacks, playback_callbacks
+from console_callbacks import audio_arg_parser, audio_player, play_event, pause_event, error_callback, connection_callbacks, debug_callbacks, playback_callbacks
 from utils import print_zeroconf_vars
 
 class Connect:
@@ -70,9 +71,13 @@ class Connect:
         if self.args.debug:
             lib.SpRegisterDebugCallbacks(debug_callbacks, userdata)
         lib.SpRegisterPlaybackCallbacks(playback_callbacks, userdata)
-
-        mixer_volume = int(mixer.getvolume()[0] * 655.35)
-        lib.SpPlaybackUpdateVolume(mixer_volume)
+        
+        try:
+            audio_player.mixer_load()
+            mixer_volume = int(audio_player.get_volume() * 655.35)
+            lib.SpPlaybackUpdateVolume(mixer_volume)
+        except player.MixerError as error:
+            print error
 
         bitrates = {
             90: lib.kSpBitrate90k,
@@ -105,7 +110,27 @@ class Connect:
             lib.SpConnectionLoginZeroConf(username, *zeroconf)
         else:
             raise ValueError("Must specify a login method (password, blob or zeroconf)")
-
+        
+    def check_events(self):
+        if play_event.is_set() and not audio_player.playing():
+            if not audio_player.acquired():
+                try:
+                    audio_player.acquire()
+                    print "DeviceAcquired"
+                    audio_player.play()
+                except player.DeviceError as error:
+                    print error
+                    lib.SpPlaybackPause()
+            else:
+                audio_player.play()
+        elif pause_event.is_set() and audio_player.playing():
+            audio_player.pause()
+            audio_player.release()
+            print "DeviceReleased"
+                
+        play_event.clear()
+        pause_event.clear()
+    
 def signal_handler(signal, frame):
         lib.SpConnectionLogout()
         lib.SpFree()
@@ -128,3 +153,4 @@ if __name__ == "__main__":
 
     while 1:
         lib.SpPumpEvents()
+        connect.check_events()
