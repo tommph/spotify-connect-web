@@ -34,7 +34,7 @@ class Player:
             
     def acquire(self):
         try:
-            self.device = alsa.PCM(alsa.PCM_PLAYBACK, card = self.device_name)
+            self.device = alsa.PCM(alsa.PCM_PLAYBACK, device = self.device_name)
             self.device.setchannels(self.channels)
             self.device.setrate(self.rate)
             self.device.setperiodsize(self.periodsize)
