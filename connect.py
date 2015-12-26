@@ -73,11 +73,16 @@ class Connect:
         lib.SpRegisterPlaybackCallbacks(playback_callbacks, userdata)
         
         try:
-            audio_player.mixer_load()
+            if self.args.mixer is None:
+                audio_player.mixer_load()
+            else:
+                audio_player.mixer_load(self.args.mixer)
+        except player.PlayerError as error:
+            print error
+            
+        if audio_player.mixer_loaded():
             mixer_volume = int(audio_player.get_volume() * 655.35)
             lib.SpPlaybackUpdateVolume(mixer_volume)
-        except player.MixerError as error:
-            print error
 
         bitrates = {
             90: lib.kSpBitrate90k,
@@ -118,7 +123,7 @@ class Connect:
                     audio_player.acquire()
                     print "DeviceAcquired"
                     audio_player.play()
-                except player.DeviceError as error:
+                except player.PlayerError as error:
                     print error
                     lib.SpPlaybackPause()
             else:

@@ -3,24 +3,34 @@ import Queue
 from threading import Thread, Event
 
 class Player:
-    def __init__(self, buffer_length, device, rate, channels, periodsize, mixer):    
+    def __init__(self, device, rate, channels, periodsize, buffer_length):    
         self.device = None
         self.device_name = device
         self.rate = rate
         self.channels = channels
         self.periodsize = periodsize
         
-        self.mixer = None  
-        self.mixer_name = mixer
+        self.mixer = None
     
         self.queue = Queue.Queue(maxsize=buffer_length)
         self.t = Thread()
         
-    def mixer_load(self):
+    def mixer_load(self, mixer = ""):
+        if not mixer:
+            try:
+                device_mixers = alsa.mixers(device = self.device_name)
+            except alsa.ALSAAudioError as error:
+                raise "PlayerError: {}".format(error)
+                
+            if len(device_mixers) > 0:
+                mixer = device_mixers[0]
+            else:
+                raise PlayerError("PlayerError: Device has no mixers")
+        
         try:
-            self.mixer = alsa.Mixer(self.mixer_name)
+            self.mixer = alsa.Mixer(mixer, device = self.device_name)
         except alsa.ALSAAudioError as error:
-            raise MixerError("MixerError: {}".format(error))
+            raise PlayerError("PlayerError: {}".format(error))
             
     def mixer_unload(self):
         self.mixer.close()
@@ -40,7 +50,7 @@ class Player:
             self.device.setperiodsize(self.periodsize)
             self.device.setformat(alsa.PCM_FORMAT_S16_LE)
         except alsa.ALSAAudioError as error:
-            raise DeviceError("DeviceError: {}".format(error))
+            raise PlayerError("PlayerError: {}".format(error))
             
     def release(self):
         self.device.close()
@@ -85,11 +95,6 @@ class Player:
         except Queue.Full:
             raise BufferFull()
             
-    def queue_clear(self):
-        while not self.queue.empty():
-            self.queue.get()
-            self.queue.task_done()
-            
     def buffer_flush(self):
         if self.playing():
             self.pause()
@@ -107,10 +112,7 @@ class Player:
     def set_volume(self, volume):
         self.mixer.setvolume(volume)
         
-class DeviceError(Exception):
-    pass
-
-class MixerError(Exception):
+class PlayerError(Exception):
     pass
 
 class BufferFull(Exception):

@@ -1,5 +1,4 @@
 import argparse
-import alsaaudio as alsa
 import json
 import player
 from threading import Event
@@ -13,10 +12,10 @@ MAXPERIODS = int(0.5 * RATE / PERIODSIZE) # 0.5s Buffer
 
 audio_arg_parser = argparse.ArgumentParser(add_help=False)
 audio_arg_parser.add_argument('--device', '-D', help='alsa output device', default='default')
-audio_arg_parser.add_argument('--mixer', '-m', help='alsa mixer name for volume control', default=alsa.mixers()[0])
+audio_arg_parser.add_argument('--mixer', '-m', help='alsa mixer name for volume control')
 args = audio_arg_parser.parse_known_args()[0]
 
-audio_player = player.Player(MAXPERIODS, args.device, RATE, CHANNELS, PERIODSIZE, args.mixer)
+audio_player = player.Player(args.device, RATE, CHANNELS, PERIODSIZE, MAXPERIODS)
 
 play_event = Event()
 pause_event = Event()
