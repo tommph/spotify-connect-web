@@ -28,7 +28,7 @@ If you just want to get running, you can use a pre-built chroot with the latest 
 Run `pip install -r requirements.txt` and also `apt-get install python-gevent` (Can't be installed from pip (on debian based systems) because of a [bug](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=770616)) (Other distributions can just run `pip install gevent`)
 
 ### Pyalsaaudio
-Can either be installed via `pip` (requires the ALSA headers (`libasound2-dev` package on Debian/Ubuntu)) or the `python-alsaaudio` package on Debian/Ubuntu
+Pyalsaaudio has been modified to use the same volume mapping as alsamixer. Change to the source directory `cd pyalsaaudio` then build `python setup.py build` (requires the ALSA headers (`libasound2-dev` package on Debian/Ubuntu)) and install `python setup.py install`
 
 ## Usage
 Tested against the rocki `libspotify_embedded_shared.so`

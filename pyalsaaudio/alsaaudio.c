@@ -23,6 +23,7 @@
 #include <alsa/asoundlib.h>
 #include <alsa/version.h>
 #include <stdio.h>
+#include "volume_mapping.h"
 
 PyDoc_STRVAR(alsaaudio_module_doc,
              "This modules provides support for the ALSA audio API.\n"
@@ -964,7 +965,7 @@ static PyTypeObject ALSAPCMType = {
 #else
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
 #endif
-    "alsaaudio.PCM",                /* tp_name */
+    "alsaaudiovolmap.PCM",          /* tp_name */
     sizeof(alsapcm_t),              /* tp_basicsize */
     0,                              /* tp_itemsize */
     /* methods */
@@ -1488,39 +1489,11 @@ Possible values in this list are:\n\
  - 'Capture Exclusive'\n");
 
 
-static int alsamixer_getpercentage(long min, long max, long value)
-{
-    /* Convert from number in range to percentage */
-    int range = max - min;
-    int tmp;
-
-    if (range == 0)
-        return 0;
-
-    value -= min;
-    tmp = rint((double)value/(double)range * 100);
-    return tmp;
-}
-
-static long alsamixer_getphysvolume(long min, long max, int percentage)
-{
-    /* Convert from percentage to number in range */
-    int range = max - min;
-    int tmp;
-
-    if (range == 0)
-        return 0;
-
-    tmp = rint((double)range * ((double)percentage*.01)) + min;
-    return tmp;
-}
-
 static PyObject *
 alsamixer_getvolume(alsamixer_t *self, PyObject *args)
 {
     snd_mixer_elem_t *elem;
     int channel;
-    long ival;
     PyObject *pcmtypeobj = NULL;
     long pcmtype;
     PyObject *result;
@@ -1548,20 +1521,14 @@ alsamixer_getvolume(alsamixer_t *self, PyObject *args)
         if (pcmtype == SND_PCM_STREAM_PLAYBACK &&
             snd_mixer_selem_has_playback_channel(elem, channel))
         {
-            snd_mixer_selem_get_playback_volume(elem, channel, &ival);
-            item = PyLong_FromLong(alsamixer_getpercentage(self->pmin,
-                                                           self->pmax,
-                                                           ival));
+            item = PyLong_FromLong(lrint(get_normalized_playback_volume(elem, channel) * 100));
             PyList_Append(result, item);
             Py_DECREF(item);
         }
         else if (pcmtype == SND_PCM_STREAM_CAPTURE
                  && snd_mixer_selem_has_capture_channel(elem, channel)
                  && snd_mixer_selem_has_capture_volume(elem)) {
-            snd_mixer_selem_get_capture_volume(elem, channel, &ival);
-            item = PyLong_FromLong(alsamixer_getpercentage(self->cmin,
-                                                           self->cmax,
-                                                           ival));
+            item = PyLong_FromLong(lrint(get_normalized_capture_volume(elem, channel) * 100));
             PyList_Append(result, item);
             Py_DECREF(item);
         }
@@ -1856,7 +1823,6 @@ alsamixer_setvolume(alsamixer_t *self, PyObject *args)
     snd_mixer_elem_t *elem;
     int i;
     long volume;
-    int physvolume;
     PyObject *pcmtypeobj = NULL;
     long pcmtype;
     int channel = MIXER_CHANNEL_ALL;
@@ -1899,18 +1865,14 @@ alsamixer_setvolume(alsamixer_t *self, PyObject *args)
         {
             if (pcmtype == SND_PCM_STREAM_PLAYBACK &&
                 snd_mixer_selem_has_playback_channel(elem, i)) {
-                physvolume = alsamixer_getphysvolume(self->pmin,
-                                                     self->pmax, volume);
-                snd_mixer_selem_set_playback_volume(elem, i, physvolume);
+                set_normalized_playback_volume(elem, i, volume / 100.0, 0);
                 done++;
             }
             else if (pcmtype == SND_PCM_STREAM_CAPTURE
                      && snd_mixer_selem_has_capture_channel(elem, i)
                      && snd_mixer_selem_has_capture_volume(elem))
             {
-                physvolume = alsamixer_getphysvolume(self->cmin, self->cmax,
-                                                     volume);
-                snd_mixer_selem_set_capture_volume(elem, i, physvolume);
+                set_normalized_capture_volume(elem, i, volume / 100.0, 0);
                 done++;
             }
         }
@@ -2157,7 +2119,7 @@ static PyTypeObject ALSAMixerType = {
 #else
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
 #endif
-    "alsaaudio.Mixer",              /* tp_name */
+    "alsaaudiovolmap.Mixer",        /* tp_name */
     sizeof(alsamixer_t),            /* tp_basicsize */
     0,                              /* tp_itemsize */
     /* methods */
@@ -2216,7 +2178,7 @@ static PyMethodDef alsaaudio_methods[] = {
 
 static struct PyModuleDef alsaaudio_module = {
     PyModuleDef_HEAD_INIT,
-    "alsaaudio",
+    "alsaaudiovolmap",
     alsaaudio_module_doc,
     -1,
     alsaaudio_methods,
@@ -2234,9 +2196,9 @@ static struct PyModuleDef alsaaudio_module = {
 #endif // 3.0
 
 #if PY_MAJOR_VERSION < 3
-void initalsaaudio(void)
+void initalsaaudiovolmap(void)
 #else
-PyObject *PyInit_alsaaudio(void)
+PyObject *PyInit_alsaaudiovolmap(void)
 #endif
 {
     PyObject *m;
@@ -2246,7 +2208,7 @@ PyObject *PyInit_alsaaudio(void)
     PyEval_InitThreads();
 
 #if PY_MAJOR_VERSION < 3
-    m = Py_InitModule3("alsaaudio", alsaaudio_methods, alsaaudio_module_doc);
+    m = Py_InitModule3("alsaaudiovolmap", alsaaudio_methods, alsaaudio_module_doc);
     if (!m)
         return;
 #else
@@ -2257,7 +2219,7 @@ PyObject *PyInit_alsaaudio(void)
 
 #endif
 
-    ALSAAudioError = PyErr_NewException("alsaaudio.ALSAAudioError", NULL,
+    ALSAAudioError = PyErr_NewException("alsaaudiovolmap.ALSAAudioError", NULL,
                                         NULL);
     if (!ALSAAudioError)
 #if PY_MAJOR_VERSION < 3

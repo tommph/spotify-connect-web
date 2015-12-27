@@ -1,4 +1,4 @@
-import alsaaudio as alsa
+import alsaaudiovolmap as alsa
 import Queue
 from threading import Thread, Event
 

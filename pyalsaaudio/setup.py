@@ -20,7 +20,7 @@ if version < '2.2.3':
 
 if __name__ == '__main__':
     setup(
-        name = 'pyalsaaudio',
+        name = 'pyalsaaudiovolmap',
         version = pyalsa_version,
         description = 'ALSA bindings',
         long_description = __doc__,
@@ -43,6 +43,6 @@ if __name__ == '__main__':
             'Topic :: Multimedia :: Sound/Audio :: Players',
             'Topic :: Multimedia :: Sound/Audio :: Capture/Recording',
             ],
-        ext_modules=[Extension('alsaaudio',['alsaaudio.c'], 
+        ext_modules=[Extension('alsaaudiovolmap',['alsaaudio.c', 'volume_mapping.c'], 
                                libraries=['asound'])]
     )
