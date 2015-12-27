@@ -15,10 +15,10 @@ class Player:
         self.queue = Queue.Queue(maxsize=buffer_length)
         self.t = Thread()
         
-    def mixer_load(self, mixer = ""):
+    def mixer_load(self, mixer="", volmin=0, volmax=100):
         if not mixer:
             try:
-                device_mixers = alsa.mixers(device = self.device_name)
+                device_mixers = alsa.mixers(device=self.device_name)
             except alsa.ALSAAudioError as error:
                 raise "PlayerError: {}".format(error)
                 
@@ -28,9 +28,12 @@ class Player:
                 raise PlayerError("PlayerError: Device has no mixers")
         
         try:
-            self.mixer = alsa.Mixer(mixer, device = self.device_name)
+            self.mixer = alsa.Mixer(mixer, device=self.device_name)
         except alsa.ALSAAudioError as error:
             raise PlayerError("PlayerError: {}".format(error))
+            
+        self.volmin = volmin
+        self.volmax = volmax
             
     def mixer_unload(self):
         self.mixer.close()
@@ -44,7 +47,7 @@ class Player:
             
     def acquire(self):
         try:
-            self.device = alsa.PCM(alsa.PCM_PLAYBACK, device = self.device_name)
+            self.device = alsa.PCM(alsa.PCM_PLAYBACK, device=self.device_name)
             self.device.setchannels(self.channels)
             self.device.setrate(self.rate)
             self.device.setperiodsize(self.periodsize)
@@ -106,11 +109,24 @@ class Player:
     def buffer_length(self):
         return self.queue.qsize()
             
-    def get_volume(self):
-        return self.mixer.getvolume()[0]
+    def volrange_set(self, volmin, volmax):
+        self.volmin = volmin
+        self.volmax = volmax
+    
+    def volume_get(self):
+        mixer_volume = self.mixer.getvolume()[0]
+    
+        if mixer_volume > self.volmax:
+            mixer_volume = self.volmax
+        elif mixer_volume < self.volmin:
+            mixer_volume = self.volmin
+
+        volume = int(round((mixer_volume - self.volmin) / float(self.volmax - self.volmin) * 100))
+        return volume
         
-    def set_volume(self, volume):
-        self.mixer.setvolume(volume)
+    def volume_set(self, volume):
+        mixer_volume = int(round((self.volmax - self.volmin) * volume / 100.0 + self.volmin))
+        self.mixer.setvolume(mixer_volume)
         
 class PlayerError(Exception):
     pass

@@ -33,7 +33,8 @@ Can either be installed via `pip` (requires the ALSA headers (`libasound2-dev` p
 ## Usage
 Tested against the rocki `libspotify_embedded_shared.so`
 ```
-usage: main.py [-h] [--device DEVICE] [--mixer MIXER] [--debug] [--key KEY]
+usage: main.py [-h] [--device DEVICE] [--mixer MIXER] [--volmin {0-99}]
+               [--volmax {1-100}] [--debug] [--key KEY]
                [--username USERNAME] [--password PASSWORD] [--name NAME]
                [--bitrate {90,160,320}] [--credentials CREDENTIALS]
 
@@ -45,6 +46,10 @@ optional arguments:
                         alsa output device
   --mixer MIXER, -m MIXER
                         alsa mixer name for volume control
+  --volmin {0-99}, -v {0-99}
+                        minimum mixer volume (percentage)
+  --volmax {1-100}, -V {1-100}
+                        maximum mixer volume (percentage)
   --debug, -d           enable libspotify_embedded/flask debug output
   --key KEY, -k KEY     path to spotify_appkey.key
   --username USERNAME, -u USERNAME

@@ -13,6 +13,8 @@ MAXPERIODS = int(0.5 * RATE / PERIODSIZE) # 0.5s Buffer
 audio_arg_parser = argparse.ArgumentParser(add_help=False)
 audio_arg_parser.add_argument('--device', '-D', help='alsa output device', default='default')
 audio_arg_parser.add_argument('--mixer', '-m', help='alsa mixer name for volume control')
+audio_arg_parser.add_argument('--volmin', '-v', help='minimum mixer volume (percentage)', metavar='{0-99}', choices=xrange(0, 100), type=int, default=0)
+audio_arg_parser.add_argument('--volmax', '-V', help='maximum mixer volume (percentage)', metavar='{1-100}', choices=xrange(1, 101), type=int, default=100)
 args = audio_arg_parser.parse_known_args()[0]
 
 audio_player = player.Player(args.device, RATE, CHANNELS, PERIODSIZE, MAXPERIODS)
@@ -140,7 +142,7 @@ def playback_seek(self, millis):
 def playback_volume(self, volume):
     print "playback_volume: {}".format(volume)
     if audio_player.mixer_loaded():
-        audio_player.set_volume(int(volume / 655.35))
+        audio_player.volume_set(int(volume / 655.35))
 
 connection_callbacks = ffi.new('SpConnectionCallbacks *', [
     connection_notify,

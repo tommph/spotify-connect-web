@@ -24,6 +24,9 @@ class Connect:
         arg_parser.add_argument('--bitrate', '-b', help='Sets bitrate of audio stream (may not actually work)', choices=[90, 160, 320], type=int, default=160)
         arg_parser.add_argument('--credentials', '-c', help='File to load and save credentials from/to', default='credentials.json')
         self.args = arg_parser.parse_args()
+        
+        if self.args.volmin >= self.args.volmax:
+            arg_parser.error('--volmin/-v must be less than --volmax/-V')
 
         app_key = ffi.new('uint8_t *')
         self.args.key.readinto(ffi.buffer(app_key))
@@ -74,15 +77,15 @@ class Connect:
         
         try:
             if self.args.mixer is None:
-                audio_player.mixer_load()
+                audio_player.mixer_load(volmin=self.args.volmin, volmax=self.args.volmax)
             else:
-                audio_player.mixer_load(self.args.mixer)
+                audio_player.mixer_load(self.args.mixer, self.args.volmin, self.args.volmax)
         except player.PlayerError as error:
             print error
             
         if audio_player.mixer_loaded():
-            mixer_volume = int(audio_player.get_volume() * 655.35)
-            lib.SpPlaybackUpdateVolume(mixer_volume)
+            volume = int(audio_player.volume_get() * 655.35)
+            lib.SpPlaybackUpdateVolume(volume)
 
         bitrates = {
             90: lib.kSpBitrate90k,
