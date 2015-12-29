@@ -20,7 +20,7 @@ class Player:
             try:
                 device_mixers = alsa.mixers(device=self.device_name)
             except alsa.ALSAAudioError as error:
-                raise "PlayerError: {}".format(error)
+                raise PlayerError("PlayerError: {}".format(error))
                 
             if len(device_mixers) > 0:
                 mixer = device_mixers[0]
